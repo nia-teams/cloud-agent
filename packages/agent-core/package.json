@@ -1,0 +1,115 @@
+{
+  "name": "@nia-teams/agent-core",
+  "version": "0.1.0",
+  "description": "Portable agent runtime and session host.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "import": "./dist/host/index.js",
+      "default": "./dist/host/index.js"
+    },
+    "./docstore-mongo": {
+      "types": "./dist/host/adapters/docstore-mongo.d.ts",
+      "import": "./dist/host/adapters/docstore-mongo.js",
+      "default": "./dist/host/adapters/docstore-mongo.js"
+    },
+    "./pubsub-redis": {
+      "types": "./dist/host/adapters/pubsub-redis.d.ts",
+      "import": "./dist/host/adapters/pubsub-redis.js",
+      "default": "./dist/host/adapters/pubsub-redis.js"
+    },
+    "./builtins/guardrail": {
+      "types": "./dist/builtins/guardrail.d.ts",
+      "import": "./dist/builtins/guardrail.js",
+      "default": "./dist/builtins/guardrail.js"
+    },
+    "./builtins/context-pruning": {
+      "types": "./dist/builtins/context-pruning.d.ts",
+      "import": "./dist/builtins/context-pruning.js",
+      "default": "./dist/builtins/context-pruning.js"
+    },
+    "./cron": {
+      "types": "./dist/host/cron/index.d.ts",
+      "import": "./dist/host/cron/index.js",
+      "default": "./dist/host/cron/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/events.d.ts",
+      "import": "./dist/protocol/events.js",
+      "default": "./dist/protocol/events.js"
+    },
+    "./event-builders": {
+      "types": "./dist/protocol/event-builders.d.ts",
+      "import": "./dist/protocol/event-builders.js",
+      "default": "./dist/protocol/event-builders.js"
+    },
+    "./llm-protocol": {
+      "types": "./dist/protocol/llm-protocol.d.ts",
+      "import": "./dist/protocol/llm-protocol.js",
+      "default": "./dist/protocol/llm-protocol.js"
+    },
+    "./snapshot-stream": {
+      "types": "./dist/protocol/snapshot-stream.d.ts",
+      "import": "./dist/protocol/snapshot-stream.js",
+      "default": "./dist/protocol/snapshot-stream.js"
+    },
+    "./builtins": {
+      "types": "./dist/builtins/index.d.ts",
+      "import": "./dist/builtins/index.js",
+      "default": "./dist/builtins/index.js"
+    },
+    "./builtins/large-tool-result": {
+      "types": "./dist/builtins/large-tool-result.d.ts",
+      "import": "./dist/builtins/large-tool-result.js",
+      "default": "./dist/builtins/large-tool-result.js"
+    },
+    "./builtins/pending-hidden": {
+      "types": "./dist/builtins/pending-hidden.d.ts",
+      "import": "./dist/builtins/pending-hidden.js",
+      "default": "./dist/builtins/pending-hidden.js"
+    },
+    "./memory": {
+      "types": "./dist/host/adapters/memory.d.ts",
+      "import": "./dist/host/adapters/memory.js",
+      "default": "./dist/host/adapters/memory.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "README_CN.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc",
+    "typecheck": "tsc --strict --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@nia-teams/ai": "^0.1.0",
+    "nanoid": "^5.0.0",
+    "cron-parser": "^5.5.0"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nia-teams/cloud-agent.git",
+    "directory": "packages/agent-core"
+  },
+  "homepage": "https://github.com/nia-teams/cloud-agent#readme",
+  "bugs": {
+    "url": "https://github.com/nia-teams/cloud-agent/issues"
+  }
+}

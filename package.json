@@ -1,0 +1,30 @@
+{
+  "name": "cloud-agent",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @nia-teams/ai && npm run build -w @nia-teams/agent-core",
+    "typecheck": "npm run typecheck --workspaces && tsc -p examples/tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.2",
+    "ioredis": "^6.0.0",
+    "mongodb": "^7.8.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nia-teams/cloud-agent.git"
+  },
+  "homepage": "https://github.com/nia-teams/cloud-agent#readme",
+  "bugs": {
+    "url": "https://github.com/nia-teams/cloud-agent/issues"
+  }
+}
