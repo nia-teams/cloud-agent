@@ -55,6 +55,8 @@ export type ExitState = {
 };
 export type ExitKind = ExitState['kind'];
 export interface RuntimeState {
+    /** Ceiling reached after a successful final text-only wrap-up. */
+    readonly maxIterationsReached?: number;
     readonly messages: readonly AgentMessage[];
     pending: AgentMessage[];
     systemPrompt: string;
@@ -135,6 +137,8 @@ export interface AgentRuntimeConfig {
     usage?: UsageRecorder;
     plugins?: readonly RuntimePlugin[];
     maxLoopIterations?: number;
+    /** Opt into one final text-only call at the iteration ceiling. */
+    maxIterationsWrapUpPrompt?: string;
     llmCallTimeoutMs?: number;
     llmIdleTimeoutMs?: number;
     formatMessagesForLLM?: ((messages: AgentMessage[]) => Promise<AgentMessage[]>) | Array<(messages: AgentMessage[]) => Promise<AgentMessage[]>>;
@@ -176,6 +180,8 @@ export interface RunOptions {
     };
 }
 export interface SubagentResultForFormat {
+    /** Ceiling reached when the child completed via its final text-only wrap-up. */
+    maxTurnsReached?: number;
     status: 'complete' | 'error' | 'cancelled';
     content: string;
     toolCallId: string;

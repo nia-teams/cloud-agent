@@ -156,7 +156,11 @@ export interface OpenAIClientOptions {
     providerName?: string;
     supportsThinking?: boolean;
     supportsReasoningEffort?: boolean;
-    reasoningFormat?: 'openai' | 'reasoning_object' | 'thinking_object' | 'enable_thinking';
+    /** Explicit wire shape; no provider/model-name inference. Budget fields are
+     * omitted when unconfigured, and request values override defaults. */
+    reasoningFormat?: 'openai' | 'reasoning_object' | 'thinking_object' | 'enable_thinking' | 'thinking_budget' | 'chat_template_kwargs';
+    /** Some thinking_object endpoints disable thinking by omitting the extension. */
+    omitDisabledThinking?: boolean;
     httpProxy?: string;
     dispatcher?: Dispatcher;
     includeUsageCost?: boolean;
@@ -298,6 +302,7 @@ export class OpenAIClient implements ILLMClient {
     private supportsThinking: boolean;
     private supportsReasoningEffort: boolean;
     private reasoningFormat?: OpenAIClientOptions['reasoningFormat'];
+    private omitDisabledThinking: boolean;
     private baseURL?: string;
     private apiKey: string;
     private proxyAgent?: Dispatcher;
@@ -316,6 +321,7 @@ export class OpenAIClient implements ILLMClient {
         this.supportsThinking = options.supportsThinking ?? false;
         this.supportsReasoningEffort = options.supportsReasoningEffort ?? false;
         this.reasoningFormat = options.reasoningFormat;
+        this.omitDisabledThinking = options.omitDisabledThinking ?? false;
         this.baseURL = options.baseURL;
         this.apiKey = options.apiKey;
     }
@@ -352,7 +358,7 @@ export class OpenAIClient implements ILLMClient {
                     parameters: t.inputSchema,
                 },
             }));
-            params.tool_choice = 'auto';
+            params.tool_choice = request.toolChoice === 'none' ? 'none' : 'auto';
         }
         if (this.reasoningFormat === 'reasoning_object') {
             if (enableThinking === false)
@@ -363,22 +369,36 @@ export class OpenAIClient implements ILLMClient {
                 params.reasoning = { enabled: true };
         }
         else if (this.reasoningFormat === 'thinking_object') {
-            if (enableThinking === false || effort === 'none')
-                params.thinking = { type: 'disabled' };
+            if (enableThinking === false || effort === 'none') {
+                if (!this.omitDisabledThinking)
+                    params.thinking = { type: 'disabled' };
+                else if (this.supportsReasoningEffort && effort !== undefined)
+                    params.reasoning_effort = effort;
+            }
             else {
-                if (enableThinking === true)
-                    params.thinking = { type: 'enabled' };
+                if (thinkingEnabled) {
+                    params.thinking = thinkingType === 'adaptive'
+                        ? { type: 'adaptive' }
+                        : { type: 'enabled', ...(thinkingBudget !== undefined ? { budget_tokens: thinkingBudget } : {}) };
+                }
                 if (this.supportsReasoningEffort && effort !== undefined)
                     params.reasoning_effort = effort;
             }
         }
         else if (this.reasoningFormat === 'enable_thinking') {
-            params.enable_thinking = effort !== 'none' && thinkingEnabled;
-            if (this.supportsReasoningEffort && effort !== undefined && effort !== 'none')
+            // This protocol has an independent boolean switch: 'none' is not
+            // a supported effort, but must not override an explicit true toggle.
+            params.enable_thinking = thinkingEnabled;
+            if (thinkingEnabled && this.supportsReasoningEffort && effort !== undefined && effort !== 'none')
                 params.reasoning_effort = effort;
         }
-        else if (this.supportsReasoningEffort && effort !== undefined) {
-            params.reasoning_effort = effort;
+        else {
+            if (this.supportsReasoningEffort && effort !== undefined)
+                params.reasoning_effort = effort;
+            if (this.reasoningFormat === 'chat_template_kwargs')
+                params.chat_template_kwargs = { enable_thinking: effort !== 'none' && thinkingEnabled };
+            else if (this.reasoningFormat === 'thinking_budget' && effort !== 'none' && thinkingEnabled && thinkingBudget !== undefined)
+                params.thinking_budget = thinkingBudget;
         }
         if (onStreamDelta) {
             return this.chatStreaming(params, onStreamDelta, signal);

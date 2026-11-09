@@ -145,6 +145,67 @@ describe('subagent resultOverride (host-defined presentation policy)', () => {
         parentClient = new MockLLMClient([]);
         subagentClient = new MockLLMClient([]);
     });
+  it.each([true, false])('finalizes a capped subagent with wrap-up text=%s', async (hasText) => {
+    const step = (id: string) => ({ content: null, toolCalls: [{ id, name: 'echo', arguments: '{"text":"ok"}' }] });
+    subagentClient.reset([step('1'), step('2'), step('3'), {
+      ...step('ignored'), content: hasText ? 'Step limit reached. Verified partial findings.' : null,
+      streamDeltas: hasText ? [{ type: 'text', content: 'Step limit reached. Verified partial findings.' }] : [],
+    }]);
+    parentClient.reset([
+      { toolCalls: [{ id: 'capped', name: 'subagent', arguments: JSON.stringify({ task: 'find X', mode: 'explore' }) }] },
+      { content: 'Parent ack.' },
+    ]);
+    const results: SubagentResultForFormat[] = [];
+    const events: any[] = [];
+    const tool = makeEchoTool();
+    const profile = { ...makeSubagentProfile('explore', subagentClient, [tool]), maxTurns: 3 };
+    const runtime = new AgentRuntime({ store: parentStore, sessionId });
+    await runtime.run({
+      client: parentClient, systemPrompt: 'parent', tools: [], keyId: 'test',
+      onEvent: e => { events.push(e); },
+      subagent: { profiles: [profile], store: subagentStore, resultOverride: result => {
+        results.push(result);
+        return defaultFormatSubagentResult(result);
+      } },
+    });
+    const doc = [...subagentStore.runs.values()][0];
+    expect(doc.status).toBe(hasText ? 'complete' : 'error');
+    expect(subagentClient.calls).toHaveLength(4);
+    expect(subagentClient.calls[3].toolChoice).toBe('none');
+    expect(subagentClient.calls[3].tools).toEqual(subagentClient.calls[2].tools);
+    expect(subagentClient.calls[3].messages.at(-1)).toMatchObject({ eventType: 'runtime.max_iterations_wrap_up', content: expect.stringContaining('maximum step limit (3)') });
+    expect(JSON.stringify(doc.messages)).not.toContain('Do NOT call tools');
+    expect(results[0].maxTurnsReached).toBe(hasText ? 3 : undefined);
+    expect(tool.calls).toHaveLength(3);
+    const toolResult = parentStore.stored.find(m => m.type === 'tool');
+    if (!hasText) {
+      expect(toolResult).toMatchObject({ isError: true });
+      expect(results[0].lastError?.message).toContain('Hit max loop iterations (3)');
+      expect(doc.messages.at(-1)?.type).toBe('tool');
+      return;
+    }
+    expect(toolResult?.content).toContain('[Subagent reached max turns (3) · partial result]');
+    expect(doc.messages.at(-1)).toMatchObject({ type: 'assistant', content: 'Step limit reached. Verified partial findings.' });
+    expect(events.some(e => e.type === 'text_delta' && e.subagentToolCallId === 'capped')).toBe(true);
+
+    parentStore.enqueue({ type: 'event', eventType: 'user_message', content: 'Continue', timestamp: new Date() });
+    parentClient.reset([
+      { toolCalls: [{ id: 'resumed', name: 'subagent', arguments: JSON.stringify({ task: 'continue', resume: 'capped' }) }] },
+      { content: 'Resumed ack.' },
+    ]);
+    subagentClient.reset([step('resumed-tool'), { content: 'Finished remaining work.' }]);
+    await runtime.run({
+      client: parentClient, systemPrompt: 'parent', tools: [], keyId: 'test',
+      subagent: { profiles: [profile], store: subagentStore },
+    });
+    expect(subagentClient.calls).toHaveLength(2);
+    expect(subagentClient.calls[0].toolChoice).toBeUndefined();
+    expect(JSON.stringify(subagentClient.calls[0].messages)).not.toContain('Do NOT call tools');
+    expect(subagentClient.calls[0].messages).toContainEqual(expect.objectContaining({ type: 'assistant', content: 'Step limit reached. Verified partial findings.' }));
+    expect(tool.calls).toHaveLength(4);
+    expect([...subagentStore.runs.values()].at(-1)?.status).toBe('complete');
+  });
+
     it('no resultOverride wired → default formatting unchanged (regression guard)', async () => {
         parentClient.reset([
             {

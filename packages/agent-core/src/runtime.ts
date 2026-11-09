@@ -5,7 +5,7 @@ import { MalformedToolArgumentsError } from '@nia-teams/ai/protocol';
 import type { AgentMessage, AssistantMessage, ToolMessage, AiPostContext, ToolExecutionResult, EventMessage, LLMChatResponse, ToolDefinition, } from '@nia-teams/ai/protocol';
 import { type AgentEvent, type AgentHooks, type AgentRuntimeConfig, type ExitKind, type ExitState, type HookSlot, type Logger, type RunOptions, type RuntimeState, type RuntimePluginHooks, type RuntimeToolResult, type Tool, type ToolContext, type UsageEntry, NOOP_LOGGER, } from './types.js';
 import { createSubagentTool, isSubagentHandoffSignal, } from './tools/builtin/subagent.js';
-const DEFAULT_MAX_LOOP_ITERATIONS = 200;
+export const DEFAULT_MAX_LOOP_ITERATIONS = 200;
 const DEFAULT_LLM_CALL_TIMEOUT_MS = 20 * 60 * 1000;
 const DEFAULT_LLM_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 function toToolDef(t: Tool): ToolDefinition {
@@ -518,17 +518,10 @@ export class AgentRuntime {
             }
             return pendingTools;
         };
+        let didMaxIterationsWrapUp = false;
         while (!state.exit) {
             if (signal.aborted) {
                 state.exit = { kind: 'aborted' };
-                break;
-            }
-            if (state.loopIteration >= maxLoopIterations) {
-                logger.error({ sessionId, turnId, loopIteration: state.loopIteration }, 'Hit max loop iterations');
-                state.exit = {
-                    kind: 'error',
-                    error: new Error(`Hit max loop iterations (${maxLoopIterations})`),
-                };
                 break;
             }
             incIteration();
@@ -596,6 +589,17 @@ export class AgentRuntime {
                     state.exit = { kind: 'done' };
                     break;
                 }
+                const isWrapUpCall = state.loopIteration > maxLoopIterations &&
+                    !!cfg.maxIterationsWrapUpPrompt?.trim() && !didMaxIterationsWrapUp;
+                if (state.loopIteration > maxLoopIterations) {
+                    if (!isWrapUpCall) {
+                        logger.error({ sessionId, turnId, loopIteration: maxLoopIterations }, 'Hit max loop iterations');
+                        state.exit = { kind: 'error', error: new Error(`Hit max loop iterations (${maxLoopIterations})`) };
+                        break;
+                    }
+                    didMaxIterationsWrapUp = true;
+                    logger.warn({ sessionId, turnId, maxLoopIterations }, 'Hit max loop iterations · running final text-only wrap-up call');
+                }
                 let viewMessages: readonly AgentMessage[] = messages;
                 try {
                     for (const plugin of plugins) {
@@ -630,7 +634,7 @@ export class AgentRuntime {
                         llmReadyMessages = viewMessages;
                     }
                 }
-                if (pendingActivationNames.size > 0) {
+                if (!isWrapUpCall && pendingActivationNames.size > 0) {
                     const namesToResolve = [...pendingActivationNames];
                     pendingActivationNames.clear();
                     try {
@@ -657,7 +661,12 @@ export class AgentRuntime {
                     }
                 }
                 const toolDefs: ToolDefinition[] = state.tools.map(toToolDef);
-                const llmMessages = llmReadyMessages as AgentMessage[];
+                const llmMessages: AgentMessage[] = isWrapUpCall
+                    ? [...llmReadyMessages, {
+                        type: 'event', eventType: 'runtime.max_iterations_wrap_up',
+                        content: cfg.maxIterationsWrapUpPrompt!, timestamp: new Date(),
+                    }]
+                    : llmReadyMessages as AgentMessage[];
                 let thinkingStarted = false;
                 let hasEmittedDelta = false;
                 let callDeadline = createLLMDeadline(llmCallTimeoutMs, llmIdleTimeoutMs);
@@ -684,10 +693,13 @@ export class AgentRuntime {
                             response = await waitForLLMCompletion(client.chat({
                                 messages: llmMessages,
                                 tools: toolDefs.length > 0 ? toolDefs : undefined,
+                                toolChoice: isWrapUpCall ? 'none' : undefined,
                                 systemPrompt: state.systemPrompt,
                                 signal: chatSignal,
                                 onStreamDelta: (delta) => {
                                     if (chatSignal.aborted)
+                                        return;
+                                    if (isWrapUpCall && (delta.type === 'tool_input_start' || delta.type === 'tool_input_delta'))
                                         return;
                                     if (delta.type === 'tool_input_start') {
                                         callDeadline.touch();
@@ -866,6 +878,11 @@ export class AgentRuntime {
                     }
                     emit(buildUsageUpdate({ sessionId, turnId, inputTokens: lastInputTokens }));
                 }
+                if (isWrapUpCall && !response.content?.trim()) {
+                    logger.error({ sessionId, turnId, loopIteration: maxLoopIterations }, 'Hit max loop iterations (wrap-up produced no text)');
+                    state.exit = { kind: 'error', error: new Error(`Hit max loop iterations (${maxLoopIterations})`) };
+                    break;
+                }
                 if (response.stopReason === 'max_tokens' &&
                     !response.content?.trim() &&
                     (!response.toolCalls || response.toolCalls.length === 0)) {
@@ -877,7 +894,7 @@ export class AgentRuntime {
                 assistantMsg = {
                     type: 'assistant',
                     content: response.content,
-                    toolCalls: response.toolCalls?.map(tc => ({
+                    toolCalls: isWrapUpCall ? undefined : response.toolCalls?.map(tc => ({
                         id: tc.id, name: tc.name,
                         arguments: tc.malformedError ? '{}' : tc.arguments,
                         ...(tc.malformedError ? { malformedError: tc.malformedError } : {}),
@@ -895,6 +912,15 @@ export class AgentRuntime {
                 await runHooks('afterLLM');
                 if (state.exit)
                     break;
+                if (isWrapUpCall) {
+                    await persistPending();
+                    if (state.exit) break;
+                    await runHooks('afterPersist');
+                    if (state.exit) break;
+                    (state as { maxIterationsReached?: number }).maxIterationsReached = maxLoopIterations;
+                    state.exit = { kind: 'done' };
+                    break;
+                }
                 if (state.pending.length === 0)
                     continue;
                 if (!response.content && !response.reasoning && !response.toolCalls?.length &&

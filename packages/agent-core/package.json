@@ -1,6 +1,6 @@
 {
   "name": "@nia-teams/agent-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Portable agent runtime and session host.",
   "type": "module",
   "main": "./dist/index.js",
@@ -95,7 +95,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@nia-teams/ai": "^0.1.0",
+    "@nia-teams/ai": "^0.1.1",
     "nanoid": "^5.0.0",
     "cron-parser": "^5.5.0"
   },

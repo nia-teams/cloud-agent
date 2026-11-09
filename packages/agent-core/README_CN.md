@@ -389,7 +389,7 @@ const plugins = createDefaultBuiltinPlugins({
 
 ## Subagent
 
-在 `AgentConfig` 中传入 `subagentProfiles: SubagentProfile[]`（单进程模式传入 `run({ subagent: { profiles, store } })`），`AgentRuntime` 会挂载内置 `subagent` 工具（不向子级 Subagent 递归暴露）：
+在 `AgentConfig` 中传入 `subagentProfiles: SubagentProfile[]`（单进程模式传入 `run({ subagent: { profiles, store } })`），`AgentRuntime` 会挂载内置 `subagent` 工具（不向子级 Subagent 递归暴露）。Subagent 达到 `maxTurns` 上限时，额外执行一次纯文本轮次（`toolChoice: "none"`），并将 `SubagentResultForFormat.maxTurnsReached` 设为该上限：
 
 ```ts
 import type { SubagentProfile, Tool } from "@nia-teams/agent-core";

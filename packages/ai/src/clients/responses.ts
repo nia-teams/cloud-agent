@@ -389,7 +389,7 @@ export class ResponsesClient implements ILLMClient {
             body.reasoning = reasoning;
         if (responsesTools && responsesTools.length > 0) {
             body.tools = responsesTools;
-            body.tool_choice = 'auto';
+            body.tool_choice = request.toolChoice === 'none' ? 'none' : 'auto';
         }
         if (onStreamDelta) {
             return this.chatStreaming(body, onStreamDelta, signal);

@@ -10,7 +10,7 @@ const core = read('packages/agent-core/package.json');
 assert.deepEqual(Object.keys(ai.dependencies).sort(), ['@anthropic-ai/sdk', 'openai', 'undici'].sort());
 assert.deepEqual(Object.keys(core.dependencies).sort(), ['@nia-teams/ai', 'cron-parser', 'nanoid'].sort());
 for (const pkg of [ai, core]) {
- assert.equal(pkg.version, '0.1.0'); assert.equal(pkg.license, 'MIT'); assert.equal(pkg.type, 'module'); assert.equal(pkg.engines.node, '>=20');
+ assert.equal(pkg.version, '0.1.1'); assert.equal(pkg.license, 'MIT'); assert.equal(pkg.type, 'module'); assert.equal(pkg.engines.node, '>=20');
  for (const entry of ['dist', 'skills', 'README.md', 'README_CN.md', 'LICENSE']) assert(pkg.files.includes(entry));
 }
 const lock = read('package-lock.json');

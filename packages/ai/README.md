@@ -92,6 +92,8 @@ console.log("\nStop reason:", response.stopReason, "Usage:", response.usage);
 
 ## Protocol Clients & Options
 
+`LLMChatRequest.toolChoice` accepts `auto` (the default) or `none`. All four clients keep tool definitions in the request when `none` disables tool calls.
+
 Use `createClient({ protocol, ... })` or instantiate `AnthropicClient`, `OpenAIClient`, `ResponsesClient`, or `GeminiClient`. All clients accept explicit `apiKey`, `model`, and optional `baseURL`, `extraHeaders`, `defaults` (`ChatDefaults`), and `logger`.
 
 ### 1. Anthropic Messages (`anthropic`)
@@ -128,16 +130,20 @@ const openai = new OpenAIClient({
   baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", // defaults to https://api.openai.com/v1
   supportsThinking: true,
   supportsReasoningEffort: true,
-  reasoningFormat: "enable_thinking", // "openai" | "reasoning_object" | "thinking_object" | "enable_thinking"
+  reasoningFormat: "enable_thinking", // "openai" | "reasoning_object" | "thinking_object" | "enable_thinking" | "thinking_budget" | "chat_template_kwargs"
   includeUsageCost: false,   // set true on endpoints that accept usage: { include: true }
 });
 ```
 
+`omitDisabledThinking: true` selects omission-based disable semantics for `thinking_object` endpoints; the default sends `{ type: "disabled" }`.
+
 - **`reasoningFormat`**:
   - `"openai"`: top-level `reasoning_effort`
   - `"reasoning_object"`: `reasoning: { effort }` or `{ enabled }`
-  - `"thinking_object"`: `thinking: { type: "enabled" | "disabled" }`
-  - `"enable_thinking"`: top-level `enable_thinking: boolean`
+  - `"thinking_object"`: `thinking: { type: "enabled" | "disabled" | "adaptive" }`; fixed thinking includes `budget_tokens` only when `thinkingBudget` is configured (request overrides defaults). No budget is inferred.
+  - `"enable_thinking"`: top-level `enable_thinking: boolean`; the toggle is independent of `effort: "none"` (that unsupported effort value is omitted).
+  - `"thinking_budget"`: top-level `thinking_budget` when enabled and configured.
+  - `"chat_template_kwargs"`: `chat_template_kwargs: { enable_thinking: boolean }`.
 
 ### 3. OpenAI Responses (`openai-responses`)
 

@@ -1,6 +1,14 @@
 import type { AgentEvent } from '../../types.js';
 import type { Tool, ToolContext, SubagentProfile, SubagentStore, ConversationStore, AgentMessage, AssistantMessage, SubagentResultForFormat, RunOptions, SubagentRunDoc, } from '../../types.js';
-import { AgentRuntime } from '../../runtime.js';
+import { AgentRuntime, DEFAULT_MAX_LOOP_ITERATIONS } from '../../runtime.js';
+
+export function buildSubagentMaxTurnsWrapUpPrompt(maxTurns: number): string {
+  return `<system-reminder>
+The maximum step limit (${maxTurns}) has been reached. Tool calls are disabled for this final response. Do NOT call tools; respond with text only.
+Explicitly state that the step limit was reached before full completion. Summarize concrete findings, verified facts (including file:line references, commands, or commit details where available), and any edits already made. List remaining unfinished items and recommend next steps. Do not claim unverified work is complete.
+</system-reminder>`;
+}
+
 export const SUBAGENT_CANCELLED_RESULT = '(subagent cancelled by user)';
 export class SubagentHandoffSignal extends Error {
     constructor(public readonly toolCallId: string) {
@@ -160,6 +168,9 @@ export interface CreateSubagentToolOptions {
 }
 function defaultFormatSubagentResult(result: SubagentResultForFormat): string {
     const output = result.content || '(subagent completed with no text output)';
+    if (result.maxTurnsReached !== undefined) {
+        return `[Subagent reached max turns (${result.maxTurnsReached}) · partial result]\n\n${output}\n\n[tool_call_id: ${result.toolCallId}]`;
+    }
     return `${output}\n\n[tool_call_id: ${result.toolCallId}]`;
 }
 export function createSubagentTool(opts: CreateSubagentToolOptions): Tool {
@@ -339,6 +350,7 @@ export function createSubagentTool(opts: CreateSubagentToolOptions): Tool {
             let didHandoff = false;
             let childExitKind: 'done' | 'skip' | 'aborted' | 'error' | undefined;
             let childExitError: Error | undefined;
+            let childMaxTurnsReached: number | undefined;
             try {
                 const cached: AgentMessage[] = isRecovery
                     ? [...seedMessages]
@@ -401,12 +413,14 @@ export function createSubagentTool(opts: CreateSubagentToolOptions): Tool {
                     parentTurnId: ctx.turnId,
                     profileName: effectiveProfile.name,
                 });
+                const effectiveMaxTurns = effectiveProfile.maxTurns ?? opts.parentMaxLoopIterations ?? DEFAULT_MAX_LOOP_ITERATIONS;
                 const childRuntime = new AgentRuntime({
                     store: childStore,
                     ...(childUsage ? { usage: childUsage } : {}),
                     sessionId: ctx.sessionId,
                     plugins: opts.parentPlugins?.flatMap((plugin) => plugin.forSubagent ? plugin.forSubagent() ?? [] : plugin),
-                    maxLoopIterations: effectiveProfile.maxTurns ?? opts.parentMaxLoopIterations,
+                    maxLoopIterations: effectiveMaxTurns,
+                    maxIterationsWrapUpPrompt: buildSubagentMaxTurnsWrapUpPrompt(effectiveMaxTurns),
                     llmCallTimeoutMs: opts.parentLlmCallTimeoutMs,
                     llmIdleTimeoutMs: opts.parentLlmIdleTimeoutMs,
                     formatMessagesForLLM: opts.parentFormatMessagesForLLM,
@@ -436,6 +450,7 @@ export function createSubagentTool(opts: CreateSubagentToolOptions): Tool {
                         },
                         afterTurn: async (state) => {
                             childExitKind = state.exit?.kind;
+                            childMaxTurnsReached = state.maxIterationsReached;
                             if (state.exit?.kind === 'error') {
                                 childExitError = state.exit.error;
                             }
@@ -495,6 +510,8 @@ export function createSubagentTool(opts: CreateSubagentToolOptions): Tool {
                 lastError,
             });
             const resultForFormat: SubagentResultForFormat = {
+                ...(finalStatus === 'complete' && childMaxTurnsReached !== undefined
+                    ? { maxTurnsReached: childMaxTurnsReached } : {}),
                 status: finalStatus,
                 content: finalResult,
                 toolCallId: parentToolCallId,

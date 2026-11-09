@@ -389,7 +389,7 @@ const plugins = createDefaultBuiltinPlugins({
 
 ## Subagents
 
-Pass `subagentProfiles: SubagentProfile[]` in `AgentConfig` (or `subagent: { profiles, store }` in standalone `run()`) to mount the built-in `subagent` tool (not recursively exposed to child subagents):
+Pass `subagentProfiles: SubagentProfile[]` in `AgentConfig` (or `subagent: { profiles, store }` in standalone `run()`) to mount the built-in `subagent` tool (not recursively exposed to child subagents). When a subagent reaches `maxTurns`, it runs one final text-only turn (`toolChoice: "none"`) and sets `SubagentResultForFormat.maxTurnsReached` to that limit:
 
 ```ts
 import type { SubagentProfile, Tool } from "@nia-teams/agent-core";

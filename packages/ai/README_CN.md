@@ -92,6 +92,8 @@ console.log("\nStop reason:", response.stopReason, "Usage:", response.usage);
 
 ## 协议客户端与参数
 
+`LLMChatRequest.toolChoice` 支持 `auto`（默认）和 `none`。四种客户端在设为 `none` 时禁用工具调用，但保留请求中的工具定义。
+
 可通过 `createClient({ protocol, ... })` 创建客户端，或实例化 `AnthropicClient`、`OpenAIClient`、`ResponsesClient`、`GeminiClient`。所有客户端接收显式 `apiKey`、`model`，以及可选的 `baseURL`、`extraHeaders`、`defaults`（`ChatDefaults`）与 `logger`。
 
 ### 1. Anthropic Messages（`anthropic`）
@@ -128,16 +130,20 @@ const openai = new OpenAIClient({
   baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", // 省略时默认为 https://api.openai.com/v1
   supportsThinking: true,
   supportsReasoningEffort: true,
-  reasoningFormat: "enable_thinking", // "openai" | "reasoning_object" | "thinking_object" | "enable_thinking"
+  reasoningFormat: "enable_thinking", // "openai" | "reasoning_object" | "thinking_object" | "enable_thinking" | "thinking_budget" | "chat_template_kwargs"
   includeUsageCost: false,   // 对支持 usage: { include: true } 的端点可设为 true
 });
 ```
 
+`omitDisabledThinking: true` 为 `thinking_object` 端点选择省略字段的关闭语义；默认显式发送 `{ type: "disabled" }`。
+
 - **`reasoningFormat`**：
   - `"openai"`：顶层 `reasoning_effort`
   - `"reasoning_object"`：`reasoning: { effort }` 或 `{ enabled }`
-  - `"thinking_object"`：`thinking: { type: "enabled" | "disabled" }`
-  - `"enable_thinking"`：顶层布尔值 `enable_thinking`
+  - `"thinking_object"`：`thinking: { type: "enabled" | "disabled" | "adaptive" }`；固定思考模式仅在配置 `thinkingBudget` 时发送 `budget_tokens`（请求覆盖默认值），不推断预算。
+  - `"enable_thinking"`：顶层布尔值 `enable_thinking`；开关独立于 `effort: "none"`（不发送这个不受支持的 effort 值）。
+  - `"thinking_budget"`：启用且配置预算时发送顶层 `thinking_budget`。
+  - `"chat_template_kwargs"`：`chat_template_kwargs: { enable_thinking: boolean }`。
 
 ### 3. OpenAI Responses（`openai-responses`）
 

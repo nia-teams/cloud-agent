@@ -90,6 +90,8 @@ export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'ma
 export interface LLMChatRequest<TMessage = AgentMessage> {
     messages: TMessage[];
     tools?: ToolDefinition[];
+    /** Disable tool calls without removing definitions from the prompt-cache prefix. */
+    toolChoice?: 'auto' | 'none';
     systemPrompt?: string;
     enableThinking?: boolean;
     thinkingBudget?: number;

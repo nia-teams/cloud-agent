@@ -106,6 +106,9 @@ export class GeminiClient implements ILLMClient {
             };
         }
         if (tools && tools.length > 0) {
+            if (request.toolChoice === 'none') {
+                requestBody.toolConfig = { functionCallingConfig: { mode: 'NONE' } };
+            }
             requestBody.tools = [
                 {
                     functionDeclarations: tools.map((t) => ({

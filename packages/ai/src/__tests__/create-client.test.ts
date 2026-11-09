@@ -22,7 +22,7 @@ describe('wire factory', () => {
   { reasoningFormat: 'thinking_object', effort: 'high', expected: { thinking: { type: 'enabled' }, reasoning_effort: 'high' } },
   { reasoningFormat: 'thinking_object', effort: 'none', expected: { thinking: { type: 'disabled' } } },
   { reasoningFormat: 'enable_thinking', effort: 'high', expected: { enable_thinking: true, reasoning_effort: 'high' } },
-  { reasoningFormat: 'enable_thinking', effort: 'none', expected: { enable_thinking: false } },
+  { reasoningFormat: 'enable_thinking', effort: 'none', expected: { enable_thinking: true } },
  ] as const)('sends only the selected $reasoningFormat wire shape ($effort)', async ({ reasoningFormat, effort, expected }) => {
   const fetch = vi.fn(async () => new Response(JSON.stringify({ id: 'completion', choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }), { headers: { 'Content-Type': 'application/json' } }));
   vi.stubGlobal('fetch', fetch);

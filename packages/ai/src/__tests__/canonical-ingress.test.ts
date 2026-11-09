@@ -50,7 +50,7 @@ it('Anthropic ingress replays canonical events, signed reasoning, tools, documen
 it.each(['deepseek-test', 'google/gemini-4-argon', 'anthropic/claude-test'])('OpenAI-compatible ingress uses its wire protocol for model family %s', async (model) => {
     const bodies = capture({ id: 'c1', choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] });
     const messages = history(model), before = structuredClone(messages);
-    await new OpenAIClient({ apiKey: 'test', baseURL: 'https://openrouter.invalid/v1', model, reasoningFormat: 'openrouter' }).chat({ messages });
+    await new OpenAIClient({ apiKey: 'test', baseURL: 'https://openrouter.invalid/v1', model, reasoningFormat: 'reasoning_object' }).chat({ messages });
     expect(messages).toEqual(before);
     expect(bodies[0].messages[0]).toEqual({ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,aW1n' } }, { type: 'text', text: 'look' }] });
     expect(bodies[0].messages[1]).toMatchObject({ role: 'assistant', reasoning_content: 'private plan', reasoning_details: [detail], tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'lookup', arguments: '{"key":"x"}' } }] });

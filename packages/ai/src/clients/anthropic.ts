@@ -217,6 +217,7 @@ export class AnthropicClient implements ILLMClient {
                 }];
         }
         if (tools && tools.length > 0) {
+            if (request.toolChoice === 'none') params.tool_choice = { type: 'none' };
             const supportsEagerStreaming = this.model.includes('opus');
             const shouldDefer = this.supportsDeferLoading && !this.disableToolDeferral;
             const deferredFlags = tools.map((t) => shouldDefer && !!t.deferLoading);
